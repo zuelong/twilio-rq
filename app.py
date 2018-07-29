@@ -1,6 +1,14 @@
 from flask import Flask, send_from_directory, request
 from flask_cors import CORS
-from test.test import tmessage
+from redis_server import redis_server
+from rq import Queue
+from rq_scheduler import Scheduler
+from datetime import datetime, timedelta
+from pytz import timezone, utc
+from sms.test import order_ready, subscription, get_number
+from random import randint
+
+scheduler = Scheduler(connection=redis_server)
 
 
 app = Flask(__name__)
@@ -13,8 +21,13 @@ def index():
 
 @app.route('/message', methods=["POST"])
 def message():
-    tmessage(request)
-    return send_from_directory('static', 'index.html')
+    phone = request.form['phone']
+    phone = get_number(phone)
+    if phone:
+        subscription(phone)
+        scheduler.enqueue_in(timedelta(seconds=10), order_ready, phone)
+        return send_from_directory('static', 'subscribed.html')
+    return send_from_directory('static', 'failed_index.html')
 
 #
 # def convertToUTC(time):
